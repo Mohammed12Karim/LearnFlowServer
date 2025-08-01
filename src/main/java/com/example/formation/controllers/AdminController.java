@@ -5,13 +5,10 @@ import com.example.formation.controllers.exception.NotAuthorizedException;
 import com.example.formation.controllers.exception.NotFoundException;
 import com.example.formation.controllers.request.user.*;
 import com.example.formation.data.dto.FormationDto;
-import com.example.formation.data.dto.SessionDto;
 import com.example.formation.data.dto.SessionFullDto;
 import com.example.formation.data.dto.UserDto;
-import com.example.formation.data.models.Formation;
-import com.example.formation.data.models.Session;
 import com.example.formation.data.models.UserInfo;
-import com.example.formation.data.servers.JwtService;
+import com.example.formation.data.security.PasswordUtil;
 import com.example.formation.data.servers.UserService;
 
 import jakarta.validation.Valid;
@@ -19,8 +16,6 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -38,19 +33,32 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping
+@RequestMapping("/admin")
 public class AdminController {
 
     private final UserService userService;
-    private final PasswordEncoder passwordEncoder;
-    private final JwtService jwtService;
+    private final PasswordUtil passwordEncoder;
 
     @Autowired
-    public AdminController(
-            UserService userService, PasswordEncoder passwordEncoder, JwtService jwtService) {
+    public AdminController(UserService userService, PasswordUtil passwordEncoder) {
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
-        this.jwtService = jwtService;
+    }
+
+    public void checkAdmin(Integer adminId) {
+        var adminInfo = userService.getUser(adminId);
+        if (adminInfo.isEmpty())
+            throw new NotFoundException("Admin not Found");
+        if (!adminInfo.get().isAdmin())
+            throw new NotAuthorizedException("User is not Admin");
+    }
+
+    public void checkAdmin(Integer adminId, String msg) {
+        var adminInfo = userService.getUser(adminId);
+        if (adminInfo.isEmpty())
+            throw new NotFoundException("Admin not Found");
+        if (!adminInfo.get().isAdmin())
+            throw new NotAuthorizedException(msg);
     }
 
     @GetMapping
@@ -59,39 +67,41 @@ public class AdminController {
         return users == null ? null : users.stream().map(user -> new UserDto(user)).toList();
     }
 
+    @GetMapping("/hello")
+    String hello() {
+        return "hello";
+    }
+
     @PostMapping("/create")
     @ResponseStatus(HttpStatus.CREATED)
-    public String create(@Valid @RequestBody SignUpForm request) {
+    public UserDto create(@Valid @RequestBody SignUpForm request) {
         try {
             UserInfo user = new UserInfo(request.name(), request.password(), "user,admin");
             UserInfo created = userService.registerUser(user, request.email());
-            return jwtService.generateToken(created.getId(), created.getEmail());
+            return new UserDto(created);
         } catch (IllegalArgumentException ex) {
             throw new BadRequestException(ex.getMessage());
         }
     }
 
-    @PostMapping("/auth")
+    @GetMapping("/{userId}/by/{admin}")
     @ResponseStatus(HttpStatus.OK)
-    public String authenticate(@Valid @RequestBody LogInForm request) {
-        var user = userService.authenticate(request.email(), request.password());
-        if (user.isEmpty())
-            throw new NotAuthorizedException("not authorized");
-        return jwtService.generateToken(user.get().getId(), request.email());
-    }
-
-    @GetMapping("/{userId}")
-    @ResponseStatus(HttpStatus.OK)
-    public UserDto getUser(@PathVariable Integer userId) {
+    public UserDto getUser(@PathVariable(name = "userId") Integer userId,
+            @PathVariable(name = "admin") Integer adminId) {
+        checkAdmin(adminId);
         var user = userService.getUser(userId);
         if (user.isEmpty())
             throw new NotFoundException("user does not exist");
         return new UserDto(user.get());
     }
 
-    @PutMapping("/{user}/setadmin")
+    @PutMapping("/{user}/setadmin/by/{admin}")
     @ResponseStatus(HttpStatus.OK)
-    public UserDto setToAdmin(@PathVariable Integer userId) {
+    public UserDto setToAdmin(
+            @PathVariable(name = "user") Integer userId,
+            @PathVariable(name = "admin") Integer adminId) {
+        checkAdmin(adminId, "User does not have the permession to set other users to admin");
+
         var user = userService.getUser(userId);
         if (user.isEmpty())
             throw new BadRequestException("user does not exist");
@@ -100,9 +110,13 @@ public class AdminController {
         return new UserDto(userService.updateUser(user.get()));
     }
 
-    @GetMapping("/{user}/formations")
+    @GetMapping("/{user}/formations/by/{admin}")
     @ResponseStatus(HttpStatus.OK)
-    Set<FormationDto> getAllFormations(@PathVariable(name = "user") Integer userId) {
+    Set<FormationDto> getAllFormations(
+            @PathVariable(name = "user") Integer userId,
+            @PathVariable(name = "admin") Integer adminId) {
+        checkAdmin(adminId);
+
         var userExist = userService.getUser(userId);
         if (userExist.isEmpty())
             throw new NotFoundException("user does not exist");
@@ -112,30 +126,32 @@ public class AdminController {
                 .collect(Collectors.toCollection(HashSet::new));
     }
 
-    @GetMapping("/{user}/sessions")
+    @GetMapping("/{user}/sessions/by/{admin}")
     @ResponseStatus(HttpStatus.OK)
-    List<SessionFullDto> getAllSessions(@PathVariable(name = "user") Integer userId) {
+    List<SessionFullDto> getAllSessions(
+            @PathVariable(name = "user") Integer userId,
+            @PathVariable(name = "admin") Integer adminId) {
+        checkAdmin(adminId);
         var userExist = userService.getUser(userId);
+
         if (userExist.isEmpty())
             throw new NotFoundException("user does not exist");
 
-        return userExist.get().getSessions().stream().map(session -> new SessionFullDto(session)).toList();
+        return userExist.get().getSessions().stream()
+                .map(session -> new SessionFullDto(session))
+                .toList();
     }
 
-    @DeleteMapping("{userId}/drop-email")
+    @DeleteMapping("{userId}/drop-email/by/{admin}")
     @ResponseStatus(HttpStatus.OK)
     ResponseEntity<String> dropEmailFromUserInfo(
             @PathVariable Integer userId,
-            @RequestParam(name = "email") String email,
-            @AuthenticationPrincipal UserInfoDetails userDetails) {
+            @PathVariable(name = "admin") Integer adminId,
+            @RequestParam(name = "email") String email) {
+        checkAdmin(adminId);
         if (email == null)
             return ResponseEntity.badRequest().body("email must be set");
         try {
-            var deleter = userService.getUser(userDetails.getUsername());
-            if (deleter.isEmpty())
-                return ResponseEntity.badRequest().build();
-            if (!deleter.get().isAdmin() && !deleter.get().getId().equals(userId))
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
             userService.removeEmailFromUser(userId, email);
             return ResponseEntity.ok(String.format("email %s has been dropped", email));
         } catch (IllegalArgumentException e) {
@@ -147,10 +163,13 @@ public class AdminController {
         }
     }
 
-    @PostMapping("{user}/add-email")
+    @PostMapping("{user}/add-email/by/{admin}")
     @ResponseStatus(HttpStatus.OK)
     public ResponseEntity<String> addEmailToUser(
-            @PathVariable(name = "user") Integer userId, @Valid @RequestBody EmailRequest request) {
+            @PathVariable(name = "user") Integer userId,
+            @PathVariable(name = "admin") Integer adminId,
+            @Valid @RequestBody EmailRequest request) {
+        checkAdmin(adminId);
         if (request.getEmail() == null)
             return ResponseEntity.badRequest().body("email and userId must be set");
         try {
@@ -169,9 +188,12 @@ public class AdminController {
         }
     }
 
-    @PutMapping("/{userId}")
+    @PutMapping("/{userId}/by/{admin}")
     @ResponseStatus(value = HttpStatus.OK)
-    public UserDto editUser(@PathVariable Integer userId, @Valid @RequestBody EditRequest edit) {
+    public UserDto editUser(@PathVariable Integer userId,
+            @PathVariable(name = "admin") Integer adminId,
+            @Valid @RequestBody EditRequest edit) {
+        checkAdmin(adminId);
         var userInfo = userService.getUser(userId);
 
         if (userInfo.isEmpty())
@@ -192,9 +214,11 @@ public class AdminController {
         return new UserDto(user);
     }
 
-    @DeleteMapping("/{userId}")
+    @DeleteMapping("/{userId}/by/{admin}")
     @ResponseStatus(HttpStatus.OK)
-    public String deleteUser(@PathVariable Integer userId) {
+    public String deleteUser(@PathVariable Integer userId,
+            @PathVariable(name = "admin") Integer adminId) {
+        checkAdmin(adminId);
         try {
             userService.deleteUser(userId);
             return "user deleted";

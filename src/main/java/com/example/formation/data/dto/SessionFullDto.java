@@ -16,7 +16,7 @@ public class SessionFullDto extends SessionDto {
 
   public SessionFullDto(Session session) {
     super(session);
-    participants = session.getParticipants().stream().map(participant -> new UserShortDto(participant)).toList();
+    participants = (session.getParticipants() != null)?session.getParticipants().stream().filter(par -> par !=null).map(participant -> new UserShortDto(participant)).toList(): null;
   }
 
 }

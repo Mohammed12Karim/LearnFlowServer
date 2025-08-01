@@ -1,37 +1,30 @@
 package com.example.formation.data.servers;
 
-import com.example.formation.controllers.request.user.UserInfoDetails;
 import com.example.formation.data.models.Session;
-import com.example.formation.data.models.UserInfo;
 import com.example.formation.data.models.UserEmail;
+import com.example.formation.data.models.UserInfo;
 import com.example.formation.data.repositories.AttendedSessionRepository;
 import com.example.formation.data.repositories.UserRepository;
+import com.example.formation.data.security.PasswordUtil;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.io.FileWriter;
 import java.util.List;
 import java.util.Optional;
 
 @Service
-public class UserService implements UserDetailsService {
+public class UserService {
     private final UserRepository userRepository;
     private final AttendedSessionRepository attendedSessionRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final PasswordUtil passwordEncoder;
 
     @Autowired
     public UserService(
             UserRepository userRepository,
             AttendedSessionRepository attendedSessionRepository,
-            PasswordEncoder passwordEncoder) {
+            PasswordUtil passwordEncoder) {
         this.userRepository = userRepository;
         this.attendedSessionRepository = attendedSessionRepository;
         this.passwordEncoder = passwordEncoder;
@@ -39,39 +32,6 @@ public class UserService implements UserDetailsService {
 
     public List<UserInfo> findAll() {
         return userRepository.findAll();
-    }
-
-    @Override
-    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-
-        Optional<UserInfo> userInfo = userRepository.findByEmail(username);
-
-        if (userInfo.isEmpty())
-            throw new UsernameNotFoundException("");
-
-        try {
-
-            FileWriter fileWriter = new FileWriter("/home/mohamed-karim/workspace/java/spring/learnFlow/work.txt");
-            if (userInfo.get().getEmails() != null && !userInfo.get().getEmails().isEmpty())
-                fileWriter.write("NOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO");
-            else
-                fileWriter.write("YESSSSSSSSSSSSSSSSESESESSSSSSSSSSSSSSSSSS");
-            fileWriter.flush();
-            fileWriter.close();
-        } catch (Exception e) {
-            try {
-
-                FileWriter fileWriter = new FileWriter("/home/mohamed-karim/workspace/java/spring/learnFlow/work.txt");
-                fileWriter.write("AAAAAAAAAAAAAAAAAAAAAAHHHHHHHHHHj");
-                fileWriter.flush();
-                fileWriter.close();
-            } catch (Exception ex) {
-                // TODO: handle exception
-            }
-        }
-
-        return userInfo.filter(user -> user != null).map(UserInfoDetails::new)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + username));
     }
 
     public Optional<UserInfo> getUser(String email) throws NullPointerException {
@@ -106,7 +66,7 @@ public class UserService implements UserDetailsService {
         }
 
         if (!user.isPasswordHashed())
-            user.setPassword(passwordEncoder.encode(user.getPassword()));
+            user.hashPassword(passwordEncoder);
         user.addEmail(new UserEmail(email, user));
         return userRepository.save(user);
     }
@@ -123,7 +83,7 @@ public class UserService implements UserDetailsService {
     public Optional<UserInfo> authenticate(String email, String rawPassword) {
         return userRepository
                 .findByEmail(email)
-                .filter(user -> passwordEncoder.matches(rawPassword, user.getPassword()));
+                .filter(user -> user.matchPassword(passwordEncoder, rawPassword));
     }
 
     @Transactional
@@ -168,7 +128,7 @@ public class UserService implements UserDetailsService {
     }
 
     public void deleteUser(Integer userId, Integer deleterId)
-            throws NullPointerException, AccessDeniedException, IllegalArgumentException {
+            throws NullPointerException, IllegalArgumentException {
         if (userId == null || deleterId == null)
             throw new NullPointerException();
         var user = userRepository.findById(userId);
@@ -178,7 +138,7 @@ public class UserService implements UserDetailsService {
         if (deleter.isEmpty())
             throw new IllegalArgumentException("deleter does not exist");
         if (!deleter.get().isAdmin() && !deleter.get().getId().equals(user.get().getId()))
-            throw new AccessDeniedException("access denied");
+            throw new IllegalArgumentException("access denied");
         userRepository.deleteById(userId);
     }
 }

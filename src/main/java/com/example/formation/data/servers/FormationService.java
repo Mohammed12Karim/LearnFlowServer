@@ -7,7 +7,6 @@ import com.example.formation.data.repositories.AttendedSessionRepository;
 import com.example.formation.data.repositories.UserRepository;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -43,7 +42,7 @@ public class FormationService {
   }
 
   public Formation editFormation(Formation formation, Integer userId)
-      throws NullPointerException, IllegalArgumentException, AccessDeniedException {
+      throws NullPointerException, IllegalArgumentException{
     if (formation == null || userId == null) {
       throw new NullPointerException("formation and userId fiels must not benull");
     }
@@ -55,7 +54,7 @@ public class FormationService {
     if (user.isEmpty())
       throw new IllegalArgumentException("user does not exits");
     if (!user.get().isAdmin() && formation.getPublicher().getId().equals(userId) == false) {
-      throw new AccessDeniedException("user does not have permission to delete formation");
+      throw new IllegalArgumentException("user does not have permission to delete formation");
     }
     return formationRepository.save(formation);
   }

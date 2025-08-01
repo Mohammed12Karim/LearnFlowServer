@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.example.formation.controllers.exception.BadRequestException;
 import com.example.formation.controllers.exception.NotAuthorizedException;
 import com.example.formation.controllers.exception.NotFoundException;
-import com.example.formation.controllers.exception.TokenNotValid;
 import com.example.formation.data.dto.ErrorResponse;
 
 @RestControllerAdvice
@@ -28,12 +27,6 @@ public class GlobalExceptionHandler {
     return new ErrorResponse(HttpStatus.BAD_REQUEST.value(), (e.getMessage() != null) ? e.getMessage() : "Bad Request");
   }
 
-  @ExceptionHandler(TokenNotValid.class)
-  @ResponseStatus(HttpStatus.BAD_REQUEST)
-  public ErrorResponse handleTokenNotValid(TokenNotValid e) {
-    return new ErrorResponse(HttpStatus.BAD_REQUEST.value(),
-        (e.getMessage() != null) ? e.getMessage() : "Token invalid");
-  }
 
   @ExceptionHandler(NotAuthorizedException.class)
   @ResponseStatus(HttpStatus.UNAUTHORIZED)

@@ -7,5 +7,5 @@ import jakarta.validation.constraints.Size;
 /** LogInForm */
 public record LogInForm(
     @NotBlank @Email String email,
-    @NotBlank @Size(min = 8) String password) {
+    @NotBlank(message = "password must be set") @Size(min = 8,message = "password must be longer than 8") String password) {
 }

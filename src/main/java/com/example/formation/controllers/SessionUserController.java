@@ -1,7 +1,6 @@
 package com.example.formation.controllers;
 
 import com.example.formation.controllers.exception.BadRequestException;
-import com.example.formation.controllers.request.user.UserInfoDetails;
 import com.example.formation.controllers.response.session.SessionResponse;
 import com.example.formation.data.dto.SessionDto;
 import com.example.formation.data.servers.AttendedSessionService;
@@ -14,7 +13,6 @@ import lombok.AllArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -65,14 +63,14 @@ public class SessionUserController {
         return new SessionDto(session.get());
     }
 
-    @PostMapping("/{session}/participate")
+    @PostMapping("/{session}/participate/{pariticipant}")
     public SessionResponse addParticipant(
             @PathVariable(name = "sesssion") Integer sesionId,
-            @AuthenticationPrincipal UserInfoDetails userDetails) {
+            @PathVariable(name = "pariticipant") Integer pariticipantId){
         var session = sessionService.getSession(sesionId);
         if (session.isEmpty())
             throw new BadRequestException("session does not exist");
-        var user = userService.getUser(userDetails.getUsername());
+        var user = userService.getUser(pariticipantId);
         if (user.isEmpty())
             throw new BadRequestException("user does not exist");
         if (session.get().checkUser(user.get()))
@@ -81,11 +79,12 @@ public class SessionUserController {
         return new SessionResponse(session.get());
     }
 
-    @DeleteMapping("/{session}/unparticipate")
+    @DeleteMapping("/{session}/unparticipate/{participant}")
     public ResponseEntity<String> removeParticipant(
-            @PathVariable Integer sessionId, @AuthenticationPrincipal UserInfoDetails userDetails) {
+            @PathVariable Integer sessionId, 
+        @PathVariable(name = "participant") Integer participantId){
 
-        var userExist = userService.getUser(userDetails.getUsername());
+        var userExist = userService.getUser(participantId);
         if (userExist.isEmpty())
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("user does not exist!");
         var sessionExist = sessionService.getSession(sessionId);

@@ -1,12 +1,13 @@
 package com.example.formation.data.models;
 
+import com.example.formation.data.security.PasswordUtil;
 import com.example.formation.data.servers.*;
 import jakarta.persistence.*;
 
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import org.springframework.security.crypto.password.PasswordEncoder;
+
 
 import java.io.FileWriter;
 import java.util.ArrayList;
@@ -108,11 +109,14 @@ public class UserInfo {
     email.setUser(null);
   }
 
-  public void hashPassword(PasswordEncoder encoder) {
+  public void hashPassword(PasswordUtil encoder) {
     if (passwordHashed == true)
       throw new IllegalArgumentException("password is hashed");
-    password = encoder.encode(password);
+    password = encoder.hash(password);
     passwordHashed = true;
+  }
+  public boolean matchPassword(PasswordUtil encoder,String rawPassword){
+      return encoder.verify(rawPassword, password);
   }
 
   public boolean isPasswordHashed() {

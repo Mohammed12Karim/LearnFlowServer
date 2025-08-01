@@ -5,7 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 @Data
-class EmailRequest {
+public class EmailRequest {
     @NotBlank(message = "email is nessecary")
     @Email()
     private String email;
